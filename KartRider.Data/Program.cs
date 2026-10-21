@@ -96,7 +96,10 @@ namespace KartRider
             {
                 ProfileService.LoadSettings();
                 // 检查更新：AutoUpdate 开启时静默更新，关闭时弹窗提示
-                await Update.UpdateDataAsync(ProfileService.SettingConfig.AutoUpdate);
+                // [Auth] 暂时停用启动器自更新：它会比对本地文件与 GitHub 发布版的 SHA256，
+                // 本地修改版必然不一致，导致每次启动都被判定为需要更新。
+                // 需要恢复时取消下一行注释即可。
+                // await Update.UpdateDataAsync(ProfileService.SettingConfig.AutoUpdate);
                 string TCGame = "HKEY_CURRENT_USER\\Software\\TCGame\\kart";
                 string RootDirectory = (string)Registry.GetValue(TCGame, "gamepath", null);
                 if (File.Exists(FileName.pinFile) && File.Exists(FileName.KartRider))
