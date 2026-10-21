@@ -40,10 +40,26 @@ internal static class AuthBootstrap
                 AuthStore.EnsureServerConfig();
 
             PacketDispatcher.RegisterHandler(new AuthPacketHandler());
+            AuthUiHook.Install();
 
             AuthServerConfig config = AuthStore.GetServerConfig();
-            SafeLog("[Auth] 账号认证模块已挂载：" +
-                    (config.Enabled ? "已启用" : "未启用（执行 Launcher.exe --auth enable 开启）"));
+            int usable = 0;
+            if (config.Accounts != null)
+            {
+                for (int i = 0; i < config.Accounts.Count; i++)
+                {
+                    AuthAccount account = config.Accounts[i];
+                    if (account != null && account.Enabled)
+                        usable++;
+                }
+            }
+
+            if (!config.Enabled)
+                SafeLog("[Auth] 账号认证未启用：任何账号密码都能登录（主界面「账号管理」可开启）");
+            else if (usable == 0)
+                SafeLog("[Auth] 警告：认证已启用但没有任何可用账号，所有玩家都会被拒绝");
+            else
+                SafeLog("[Auth] 账号认证已启用，可用账号 " + usable + " 个");
         }
         catch (Exception ex)
         {
