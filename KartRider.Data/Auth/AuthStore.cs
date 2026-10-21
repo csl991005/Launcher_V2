@@ -61,14 +61,14 @@ internal static class AuthStore
                 if (!File.Exists(ServerConfigPath))
                 {
                     SaveServerConfigUnlocked(CreateDefaultServerConfig());
-                    Console.WriteLine($"[Auth] 已生成认证配置文件: {ServerConfigPath}");
-                    Console.WriteLine("[Auth] 默认账号 admin / 口令 admin，请在「账号管理」中尽快修改");
+                    AuthLog.Write($"已生成认证配置文件: {ServerConfigPath}");
+                    AuthLog.Write("默认账号 admin / 口令 admin，请在「账号管理」中尽快修改");
                 }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Auth] 生成认证配置失败: {ex.Message}");
+            AuthLog.Write($"生成认证配置失败: {ex.Message}");
         }
     }
 
@@ -183,7 +183,7 @@ internal static class AuthStore
     /// </summary>
     private static AuthServerConfig FailClosedConfig(string message)
     {
-        Console.WriteLine($"[Auth] 认证配置无法解析（{message}），已临时拒绝所有登录，请检查 {ServerConfigPath}");
+        AuthLog.Write($"认证配置无法解析（{message}），已临时拒绝所有登录，请检查 {ServerConfigPath}");
 
         try
         {
@@ -191,7 +191,7 @@ internal static class AuthStore
             {
                 string backup = ServerConfigPath + ".bak";
                 File.Copy(ServerConfigPath, backup, true);
-                Console.WriteLine($"[Auth] 已备份损坏配置到 {backup}");
+                AuthLog.Write($"已备份损坏配置到 {backup}");
             }
         }
         catch
@@ -323,12 +323,12 @@ internal static class AuthStore
             SaveServerConfig(config);
 
             if (config.LogSuccessfulLogin)
-                Console.WriteLine($"[Auth] 登录成功: 账号 {target.Account} 来自 {ip}（累计 {target.LoginCount} 次）");
+                AuthLog.Write($"登录成功: 账号 {target.Account} 来自 {ip}（累计 {target.LoginCount} 次）");
         }
         catch (Exception ex)
         {
             // 统计写入失败不应影响玩家登录
-            Console.WriteLine($"[Auth] 保存登录统计失败: {ex.Message}");
+            AuthLog.Write($"保存登录统计失败: {ex.Message}");
         }
     }
 
@@ -448,7 +448,7 @@ internal static class AuthStore
             {
                 record.LockUntilTicks = Environment.TickCount64 + Math.Max(1, config.LockoutSeconds) * 1000L;
                 record.Count = 0;
-                Console.WriteLine($"[Auth] {key} 失败次数达到上限，已临时锁定 {config.LockoutSeconds} 秒");
+                AuthLog.Write($"{key} 失败次数达到上限，已临时锁定 {config.LockoutSeconds} 秒");
             }
         }
     }
@@ -491,7 +491,7 @@ internal static class AuthStore
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Auth] 读取客户端认证配置失败: {ex.Message}");
+            AuthLog.Write($"读取客户端认证配置失败: {ex.Message}");
             return new AuthClientConfig();
         }
     }
@@ -507,7 +507,7 @@ internal static class AuthStore
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Auth] 保存客户端认证配置失败: {ex.Message}");
+            AuthLog.Write($"保存客户端认证配置失败: {ex.Message}");
         }
     }
 

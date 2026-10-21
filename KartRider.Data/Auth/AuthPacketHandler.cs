@@ -59,7 +59,7 @@ internal sealed class AuthPacketHandler : IPacketHandler
         catch (Exception ex)
         {
             // 配置读不出来时不拦截，避免因为 I/O 异常把所有人挡在门外
-            Console.WriteLine($"[Auth] 读取认证配置异常: {ex.Message}");
+            AuthLog.Write($"读取认证配置异常: {ex.Message}");
             return false;
         }
 
@@ -74,7 +74,7 @@ internal sealed class AuthPacketHandler : IPacketHandler
             AuthSessionState state = Sessions.GetOrCreateValue(session);
             if (!state.Authenticated)
             {
-                Console.WriteLine($"[Auth] 拒绝未认证的登录请求（PqLogin），来源 {ip}");
+                AuthLog.Write($"拒绝未认证的登录请求（PqLogin），来源 {ip}");
                 RejectSession(session);
                 return true;
             }
@@ -87,7 +87,7 @@ internal sealed class AuthPacketHandler : IPacketHandler
             AuthSessionState state = Sessions.GetOrCreateValue(session);
             state.Authenticated = true;
             state.Ip = ip;
-            Console.WriteLine($"[Auth] 本机回环连接 {ip} 已按配置放行");
+            AuthLog.Write($"本机回环连接 {ip} 已按配置放行");
             return false;
         }
 
@@ -97,7 +97,7 @@ internal sealed class AuthPacketHandler : IPacketHandler
         string parseError;
         if (!TryReadLoginPacket(context.Packet, out nickname, out account, out proof, out parseError))
         {
-            Console.WriteLine($"[Auth] 认证包解析失败（{ip}）: {parseError}");
+            AuthLog.Write($"认证包解析失败（{ip}）: {parseError}");
             RejectSession(session);
             return true;
         }
@@ -106,7 +106,7 @@ internal sealed class AuthPacketHandler : IPacketHandler
         string reason;
         if (!AuthStore.Verify(account, proof, ip, out matched, out reason))
         {
-            Console.WriteLine($"[Auth] 拒绝登录: 账号 {account}，来源 {ip}，原因：{reason}");
+            AuthLog.Write($"拒绝登录: 账号 {account}，来源 {ip}，原因：{reason}");
             RejectSession(session);
             return true;
         }

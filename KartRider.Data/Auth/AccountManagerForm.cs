@@ -20,6 +20,7 @@ internal sealed class AccountManagerForm : Form
     private readonly Button _resetButton;
     private readonly Button _accountEnableButton;
     private readonly Button _deleteButton;
+    private readonly Button _logButton;
     private readonly Button _refreshButton;
     private readonly Button _closeButton;
 
@@ -36,6 +37,7 @@ internal sealed class AccountManagerForm : Form
         _resetButton = new Button();
         _accountEnableButton = new Button();
         _deleteButton = new Button();
+        _logButton = new Button();
         _refreshButton = new Button();
         _closeButton = new Button();
 
@@ -123,11 +125,16 @@ internal sealed class AccountManagerForm : Form
         _deleteButton.UseVisualStyleBackColor = true;
         _deleteButton.Click += DeleteButton_Click;
 
-        _refreshButton.Location = new Point(456, 386);
-        _refreshButton.Size = new Size(90, 28);
+        _refreshButton.Location = new Point(456, 386);        _refreshButton.Size = new Size(90, 28);
         _refreshButton.Text = "刷新";
         _refreshButton.UseVisualStyleBackColor = true;
         _refreshButton.Click += (s, e) => ReloadConfig();
+
+        _logButton.Location = new Point(400, 386);
+        _logButton.Size = new Size(50, 28);
+        _logButton.Text = "日志";
+        _logButton.UseVisualStyleBackColor = true;
+        _logButton.Click += (s, e) => OpenAuthLog();
 
         _closeButton.Location = new Point(550, 386);
         _closeButton.Size = new Size(90, 28);
@@ -155,6 +162,7 @@ internal sealed class AccountManagerForm : Form
         Controls.Add(_resetButton);
         Controls.Add(_accountEnableButton);
         Controls.Add(_deleteButton);
+        Controls.Add(_logButton);
         Controls.Add(_refreshButton);
         Controls.Add(_closeButton);
 
@@ -477,6 +485,32 @@ internal sealed class AccountManagerForm : Form
 
         if (SaveConfig())
             ReloadConfig();
+    }
+
+    /// <summary>打开认证日志，直接看每次登录是被放行还是拒绝、原因是什么。</summary>
+    private void OpenAuthLog()
+    {
+        try
+        {
+            if (!System.IO.File.Exists(AuthLog.FilePath))
+            {
+                MessageBox.Show(this,
+                    "还没有认证日志。\n\n启动一次游戏并登录后，这里会记录每次放行/拒绝的结果。",
+                    "账号管理",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                return;
+            }
+
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(AuthLog.FilePath)
+            {
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, "打开日志失败：" + ex.Message, "账号管理", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
     }
 
     private bool SaveConfig()

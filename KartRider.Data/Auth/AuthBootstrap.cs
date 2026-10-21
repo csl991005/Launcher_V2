@@ -30,7 +30,7 @@ internal static class AuthBootstrap
         }
         catch (Exception ex)
         {
-            SafeLog("[Auth] 命令行处理失败: " + ex.Message);
+            AuthLog.Write("命令行处理失败: " + ex.Message);
         }
 
         try
@@ -40,6 +40,8 @@ internal static class AuthBootstrap
                 AuthStore.EnsureServerConfig();
 
             PacketDispatcher.RegisterHandler(new AuthPacketHandler());
+            AuthLog.Write("登录拦截器已注册（PqCnAuthenLogin / PqLogin）");
+
             AuthUiHook.Install();
 
             AuthServerConfig config = AuthStore.GetServerConfig();
@@ -60,19 +62,19 @@ internal static class AuthBootstrap
             }
 
             if (!config.Enabled)
-                SafeLog("[Auth] 账号认证未启用：任何账号密码都能登录（主界面「账号管理」可开启）");
+                AuthLog.Write("账号认证未启用：任何账号密码都能登录（主界面「账号管理」可开启）");
             else if (usable == 0)
-                SafeLog("[Auth] 警告：认证已启用但没有任何可用账号，所有玩家都会被拒绝");
+                AuthLog.Write("警告：认证已启用但没有任何可用账号，所有玩家都会被拒绝");
             else
-                SafeLog("[Auth] 账号认证已启用，可用账号 " + usable + " 个");
+                AuthLog.Write("账号认证已启用，可用账号 " + usable + " 个");
 
             if (defaultPassword > 0)
-                SafeLog("[Auth] 提醒：仍有账号使用初始口令（" + AuthStore.DefaultAccountName + " / " +
-                        AuthStore.DefaultAccountPassword + "），请尽快在「账号管理」中修改");
+                AuthLog.Write("提醒：仍有账号使用初始口令（" + AuthStore.DefaultAccountName + " / " +
+                              AuthStore.DefaultAccountPassword + "），请尽快在「账号管理」中修改");
         }
         catch (Exception ex)
         {
-            SafeLog("[Auth] 模块挂载失败: " + ex.Message);
+            AuthLog.Write("模块挂载失败: " + ex.GetType().Name + ": " + ex.Message);
         }
     }
 
@@ -90,16 +92,5 @@ internal static class AuthBootstrap
         }
 
         return true;
-    }
-
-    private static void SafeLog(string message)
-    {
-        try
-        {
-            Console.WriteLine(message);
-        }
-        catch
-        {
-        }
     }
 }

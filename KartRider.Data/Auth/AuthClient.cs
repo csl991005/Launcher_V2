@@ -37,7 +37,7 @@ internal static class AuthClient
         }
         catch (Exception ex)
         {
-            Console.WriteLine("[Auth] 读取客户端认证配置失败: " + ex.Message);
+            AuthLog.Write("读取客户端认证配置失败: " + ex.Message);
             config = new AuthClientConfig();
         }
 
@@ -60,7 +60,7 @@ internal static class AuthClient
 
         if (Interlocked.CompareExchange(ref _prompting, 1, 0) != 0)
         {
-            Console.WriteLine("[Auth] 登录窗口已打开，忽略本次启动请求");
+            AuthLog.Write("登录窗口已打开，忽略本次启动请求");
             return false;
         }
 
@@ -70,13 +70,13 @@ internal static class AuthClient
 
             if (result == null || result.Cancelled)
             {
-                Console.WriteLine("[Auth] 用户取消登录，已停止启动游戏");
+                AuthLog.Write("用户取消登录，已停止启动游戏");
                 return false;
             }
 
             if (result.Skip)
             {
-                Console.WriteLine("[Auth] 已跳过账号认证");
+                AuthLog.Write("已跳过账号认证");
                 return true;
             }
 
@@ -146,7 +146,7 @@ internal static class AuthClient
             }
             catch (Exception ex)
             {
-                Console.WriteLine("[Auth] 显示登录窗口失败: " + ex.Message);
+                AuthLog.Write("显示登录窗口失败: " + ex.Message);
                 return null;
             }
             return result;
