@@ -6,13 +6,17 @@ namespace KartRider;
 
 /// <summary>
 /// 新增账号 / 重置口令对话框。纯代码构建界面，不依赖 Designer 文件。
+///
+/// 账号只用于登录校验，游戏昵称由玩家在「设置」里填写；
+/// 这里的「游戏昵称」是可选绑定，填了之后该账号只能使用这个昵称。
 /// </summary>
 internal sealed class AccountEditForm : Form
 {
-    private readonly string _existingAccount;
+    private readonly AuthAccount _existing;
 
     private readonly TextBox _accountBox;
     private readonly TextBox _passwordBox;
+    private readonly TextBox _nicknameBox;
     private readonly TextBox _noteBox;
     private readonly CheckBox _randomBox;
     private readonly Button _okButton;
@@ -28,18 +32,24 @@ internal sealed class AccountEditForm : Form
         get { return _passwordBox.Text == null ? string.Empty : _passwordBox.Text; }
     }
 
+    public string Nickname
+    {
+        get { return _nicknameBox.Text == null ? string.Empty : _nicknameBox.Text.Trim(); }
+    }
+
     public string Note
     {
         get { return _noteBox.Text == null ? string.Empty : _noteBox.Text.Trim(); }
     }
 
-    /// <param name="existingAccount">为 null 表示新增；否则为重置口令</param>
-    public AccountEditForm(string existingAccount)
+    /// <param name="existing">为 null 表示新增；否则为重置口令</param>
+    public AccountEditForm(AuthAccount existing)
     {
-        _existingAccount = existingAccount;
+        _existing = existing;
 
         _accountBox = new TextBox();
         _passwordBox = new TextBox();
+        _nicknameBox = new TextBox();
         _noteBox = new TextBox();
         _randomBox = new CheckBox();
         _okButton = new Button();
@@ -47,12 +57,14 @@ internal sealed class AccountEditForm : Form
 
         InitializeComponent();
 
-        if (existingAccount != null)
+        if (existing != null)
         {
             Text = "重置口令";
-            _accountBox.Text = existingAccount;
+            _accountBox.Text = existing.Account;
             _accountBox.ReadOnly = true;
             _accountBox.BackColor = SystemColors.Control;
+            _nicknameBox.Text = existing.Nickname;
+            _noteBox.Text = existing.Note;
         }
         else
         {
@@ -64,8 +76,9 @@ internal sealed class AccountEditForm : Form
     {
         Label accountLabel = new Label();
         Label passwordLabel = new Label();
+        Label nicknameLabel = new Label();
         Label noteLabel = new Label();
-        Label hintLabel = new Label();
+        Label nicknameHint = new Label();
         SuspendLayout();
 
         accountLabel.AutoSize = true;
@@ -87,29 +100,37 @@ internal sealed class AccountEditForm : Form
         _randomBox.AutoSize = true;
         _randomBox.Location = new Point(86, 82);
         _randomBox.Text = "随机生成口令（推荐）";
-        _randomBox.Checked = _existingAccount == null;
+        _randomBox.Checked = _existing == null;
         _randomBox.CheckedChanged += RandomBox_CheckedChanged;
 
+        nicknameLabel.AutoSize = true;
+        nicknameLabel.Location = new Point(18, 112);
+        nicknameLabel.Text = "游戏昵称";
+
+        _nicknameBox.Location = new Point(86, 108);
+        _nicknameBox.Size = new Size(276, 23);
+        _nicknameBox.MaxLength = 32;
+
+        nicknameHint.AutoSize = true;
+        nicknameHint.ForeColor = Color.Gray;
+        nicknameHint.Location = new Point(86, 134);
+        nicknameHint.Text = "可留空，留空则由玩家在「设置」里填写";
+
         noteLabel.AutoSize = true;
-        noteLabel.Location = new Point(18, 112);
+        noteLabel.Location = new Point(18, 162);
         noteLabel.Text = "备注";
 
-        _noteBox.Location = new Point(86, 108);
+        _noteBox.Location = new Point(86, 158);
         _noteBox.Size = new Size(276, 23);
         _noteBox.MaxLength = 64;
 
-        hintLabel.AutoSize = true;
-        hintLabel.ForeColor = Color.Gray;
-        hintLabel.Location = new Point(18, 140);
-        hintLabel.Text = "账号即游戏昵称，创建后不可修改。";
-
-        _okButton.Location = new Point(192, 172);
+        _okButton.Location = new Point(192, 200);
         _okButton.Size = new Size(80, 26);
         _okButton.Text = "确定";
         _okButton.UseVisualStyleBackColor = true;
         _okButton.Click += OkButton_Click;
 
-        _cancelButton.Location = new Point(282, 172);
+        _cancelButton.Location = new Point(282, 200);
         _cancelButton.Size = new Size(80, 26);
         _cancelButton.Text = "取消";
         _cancelButton.UseVisualStyleBackColor = true;
@@ -117,7 +138,7 @@ internal sealed class AccountEditForm : Form
 
         AutoScaleDimensions = new SizeF(6F, 12F);
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(384, 214);
+        ClientSize = new Size(384, 242);
         Font = new Font("宋体", 9F, FontStyle.Regular, GraphicsUnit.Point, 134);
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
@@ -130,9 +151,11 @@ internal sealed class AccountEditForm : Form
         Controls.Add(passwordLabel);
         Controls.Add(_passwordBox);
         Controls.Add(_randomBox);
+        Controls.Add(nicknameLabel);
+        Controls.Add(_nicknameBox);
+        Controls.Add(nicknameHint);
         Controls.Add(noteLabel);
         Controls.Add(_noteBox);
-        Controls.Add(hintLabel);
         Controls.Add(_okButton);
         Controls.Add(_cancelButton);
 
@@ -149,7 +172,7 @@ internal sealed class AccountEditForm : Form
     {
         base.OnShown(e);
 
-        if (_existingAccount == null)
+        if (_existing == null)
             _accountBox.Focus();
         else if (!_randomBox.Checked)
             _passwordBox.Focus();
@@ -165,7 +188,7 @@ internal sealed class AccountEditForm : Form
 
     private void OkButton_Click(object sender, EventArgs e)
     {
-        if (_existingAccount == null)
+        if (_existing == null)
         {
             if (!AuthStore.IsSafeAccountName(AccountName))
             {
@@ -177,6 +200,17 @@ internal sealed class AccountEditForm : Form
                 _accountBox.Focus();
                 return;
             }
+        }
+
+        if (!string.IsNullOrEmpty(Nickname) && !AuthStore.IsSafeAccountName(Nickname))
+        {
+            MessageBox.Show(this,
+                "游戏昵称不能超过 32 个字符，且不能包含 / \\ : * ? \" < > |",
+                "账号管理",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+            _nicknameBox.Focus();
+            return;
         }
 
         if (_randomBox.Checked)

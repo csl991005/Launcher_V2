@@ -50,9 +50,9 @@ internal static class AuthClient
         // 同一进程内复用上次输入的凭据，避免每次点击“启动游戏”都弹窗
         lock (SyncRoot)
         {
-            if (_cachedProof != null &&
-                string.Equals(_cachedAccount, packet.Nickname, StringComparison.Ordinal))
+            if (_cachedProof != null)
             {
+                packet.Account = _cachedAccount;
                 packet.AuthProof = _cachedProof;
                 return true;
             }
@@ -82,14 +82,8 @@ internal static class AuthClient
 
             string account = (result.Account ?? string.Empty).Trim();
 
-            // 账号即昵称：同步到设置，保证 passport、Profile 目录与账号一致
-            if (!string.Equals(ProfileService.SettingConfig.Name, account, StringComparison.Ordinal))
-            {
-                ProfileService.SettingConfig.Name = account;
-                ProfileService.SaveSettings();
-            }
-
-            packet.Nickname = account;
+            // 账号只用于登录校验；游戏昵称仍取自「设置」，两者互不影响
+            packet.Account = account;
             packet.AuthProof = result.Proof;
 
             lock (SyncRoot)

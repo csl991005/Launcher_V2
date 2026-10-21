@@ -7,15 +7,15 @@ using System.Windows.Forms;
 namespace KartRider;
 
 /// <summary>
-/// 账号管理窗口：账号增删、口令重置、启用/禁用、全局认证开关。
+/// 账号管理窗口：认证开关、账号增删、口令重置、昵称绑定、启用/禁用。
 /// 直接读写 Profile/AuthServer.json，与命令行 --auth 操作的是同一份数据。
 /// </summary>
 internal sealed class AccountManagerForm : Form
 {
     private readonly ListView _list;
+    private readonly CheckBox _enableCheck;
     private readonly Label _statusLabel;
     private readonly Label _pathLabel;
-    private readonly Button _toggleButton;
     private readonly Button _addButton;
     private readonly Button _resetButton;
     private readonly Button _accountEnableButton;
@@ -24,13 +24,14 @@ internal sealed class AccountManagerForm : Form
     private readonly Button _closeButton;
 
     private AuthServerConfig _config;
+    private bool _suppressEvents;
 
     public AccountManagerForm()
     {
         _list = new ListView();
+        _enableCheck = new CheckBox();
         _statusLabel = new Label();
         _pathLabel = new Label();
-        _toggleButton = new Button();
         _addButton = new Button();
         _resetButton = new Button();
         _accountEnableButton = new Button();
@@ -45,24 +46,24 @@ internal sealed class AccountManagerForm : Form
     private void InitializeComponent()
     {
         ColumnHeader accountColumn = new ColumnHeader();
+        ColumnHeader nicknameColumn = new ColumnHeader();
         ColumnHeader stateColumn = new ColumnHeader();
         ColumnHeader countColumn = new ColumnHeader();
         ColumnHeader lastColumn = new ColumnHeader();
         ColumnHeader noteColumn = new ColumnHeader();
         SuspendLayout();
 
+        _enableCheck.AutoSize = true;
+        _enableCheck.Location = new Point(16, 10);
+        _enableCheck.Font = new Font("宋体", 10F, FontStyle.Bold, GraphicsUnit.Point, 134);
+        _enableCheck.Text = "启用账号认证";
+        _enableCheck.CheckedChanged += EnableCheck_CheckedChanged;
+
         _statusLabel.AutoSize = false;
-        _statusLabel.Location = new Point(16, 12);
-        _statusLabel.Size = new Size(440, 22);
-        _statusLabel.Font = new Font("宋体", 10F, FontStyle.Bold, GraphicsUnit.Point, 134);
+        _statusLabel.Location = new Point(160, 12);
+        _statusLabel.Size = new Size(480, 20);
         _statusLabel.TextAlign = ContentAlignment.MiddleLeft;
         _statusLabel.Text = "读取中...";
-
-        _toggleButton.Location = new Point(528, 8);
-        _toggleButton.Size = new Size(112, 30);
-        _toggleButton.Text = "启用认证";
-        _toggleButton.UseVisualStyleBackColor = true;
-        _toggleButton.Click += ToggleButton_Click;
 
         _pathLabel.AutoSize = false;
         _pathLabel.Location = new Point(16, 40);
@@ -72,15 +73,17 @@ internal sealed class AccountManagerForm : Form
         _pathLabel.Text = "配置文件：" + AuthStore.ServerConfigPath;
 
         accountColumn.Text = "账号";
-        accountColumn.Width = 170;
+        accountColumn.Width = 120;
+        nicknameColumn.Text = "游戏昵称";
+        nicknameColumn.Width = 120;
         stateColumn.Text = "状态";
-        stateColumn.Width = 70;
+        stateColumn.Width = 60;
         countColumn.Text = "登录次数";
-        countColumn.Width = 80;
+        countColumn.Width = 70;
         lastColumn.Text = "最后登录";
-        lastColumn.Width = 150;
+        lastColumn.Width = 135;
         noteColumn.Text = "备注";
-        noteColumn.Width = 150;
+        noteColumn.Width = 115;
 
         _list.Location = new Point(16, 64);
         _list.Size = new Size(624, 310);
@@ -89,7 +92,10 @@ internal sealed class AccountManagerForm : Form
         _list.GridLines = true;
         _list.MultiSelect = false;
         _list.HideSelection = false;
-        _list.Columns.AddRange(new ColumnHeader[] { accountColumn, stateColumn, countColumn, lastColumn, noteColumn });
+        _list.Columns.AddRange(new ColumnHeader[]
+        {
+            accountColumn, nicknameColumn, stateColumn, countColumn, lastColumn, noteColumn,
+        });
         _list.SelectedIndexChanged += (s, e) => UpdateButtonState();
         _list.DoubleClick += (s, e) => ResetPassword();
 
@@ -141,8 +147,8 @@ internal sealed class AccountManagerForm : Form
         Text = "账号管理";
         CancelButton = _closeButton;
 
+        Controls.Add(_enableCheck);
         Controls.Add(_statusLabel);
-        Controls.Add(_toggleButton);
         Controls.Add(_pathLabel);
         Controls.Add(_list);
         Controls.Add(_addButton);
@@ -184,6 +190,7 @@ internal sealed class AccountManagerForm : Form
         foreach (AuthAccount account in accounts)
         {
             ListViewItem item = new ListViewItem(account.Account ?? string.Empty);
+            item.SubItems.Add(string.IsNullOrEmpty(account.Nickname) ? "（由玩家自定）" : account.Nickname);
             item.SubItems.Add(account.Enabled ? "启用" : "禁用");
             item.SubItems.Add(account.LoginCount.ToString());
             item.SubItems.Add(string.IsNullOrEmpty(account.LastLoginAt) ? "-" : account.LastLoginAt);
@@ -192,6 +199,8 @@ internal sealed class AccountManagerForm : Form
 
             if (!account.Enabled)
                 item.ForeColor = Color.Gray;
+            else if (account.DefaultPassword)
+                item.ForeColor = Color.FromArgb(190, 90, 0);
 
             _list.Items.Add(item);
 
@@ -222,18 +231,24 @@ internal sealed class AccountManagerForm : Form
     private void UpdateStatus(List<AuthAccount> accounts)
     {
         int enabledCount = accounts.Count(a => a.Enabled);
+        bool hasDefaultPassword = accounts.Any(a => a.Enabled && a.DefaultPassword);
+
+        _suppressEvents = true;
+        _enableCheck.Checked = _config.Enabled;
+        _suppressEvents = false;
 
         if (_config.Enabled)
         {
-            _statusLabel.Text = "认证已启用 · 共 " + accounts.Count + " 个账号，可用 " + enabledCount + " 个";
-            _statusLabel.ForeColor = Color.FromArgb(0, 120, 60);
-            _toggleButton.Text = "关闭认证";
+            _statusLabel.Text = "已启用 · 共 " + accounts.Count + " 个账号，可用 " + enabledCount + " 个" +
+                                (hasDefaultPassword ? " · 存在未修改的初始口令" : string.Empty);
+            _statusLabel.ForeColor = hasDefaultPassword
+                ? Color.FromArgb(190, 90, 0)
+                : Color.FromArgb(0, 120, 60);
         }
         else
         {
-            _statusLabel.Text = "认证未启用 · 任何账号密码都能进入（共 " + accounts.Count + " 个账号）";
+            _statusLabel.Text = "未启用 · 任何账号密码都能进入游戏";
             _statusLabel.ForeColor = Color.FromArgb(190, 0, 0);
-            _toggleButton.Text = "启用认证";
         }
     }
 
@@ -268,22 +283,14 @@ internal sealed class AccountManagerForm : Form
 
     // ---------------------------------------------------------------- 操作
 
-    private void ToggleButton_Click(object sender, EventArgs e)
+    private void EnableCheck_CheckedChanged(object sender, EventArgs e)
     {
-        if (_config.Enabled)
-        {
-            DialogResult result = MessageBox.Show(this,
-                "关闭后，任何知道服务器 IP 和端口的人都能直接进入游戏。\n\n确认关闭账号认证？",
-                "关闭认证",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Warning);
+        if (_suppressEvents)
+            return;
 
-            if (result != DialogResult.Yes)
-                return;
+        bool target = _enableCheck.Checked;
 
-            _config.Enabled = false;
-        }
-        else
+        if (target)
         {
             int enabledCount = GetAccounts().Count(a => a.Enabled);
             if (enabledCount == 0)
@@ -293,6 +300,7 @@ internal sealed class AccountManagerForm : Form
                     "无法启用",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
+                RevertCheck();
                 return;
             }
 
@@ -303,13 +311,39 @@ internal sealed class AccountManagerForm : Form
                 MessageBoxIcon.Question);
 
             if (result != DialogResult.Yes)
+            {
+                RevertCheck();
                 return;
-
-            _config.Enabled = true;
+            }
         }
+        else
+        {
+            DialogResult result = MessageBox.Show(this,
+                "关闭后，任何知道服务器 IP 和端口的人都能直接进入游戏。\n\n确认关闭账号认证？",
+                "关闭认证",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning);
+
+            if (result != DialogResult.Yes)
+            {
+                RevertCheck();
+                return;
+            }
+        }
+
+        _config.Enabled = target;
 
         if (SaveConfig())
             ReloadConfig();
+        else
+            RevertCheck();
+    }
+
+    private void RevertCheck()
+    {
+        _suppressEvents = true;
+        _enableCheck.Checked = !_enableCheck.Checked;
+        _suppressEvents = false;
     }
 
     private void AddButton_Click(object sender, EventArgs e)
@@ -332,12 +366,13 @@ internal sealed class AccountManagerForm : Form
             AuthAccount account = new AuthAccount
             {
                 Account = accountName,
+                Nickname = form.Nickname,
                 Note = form.Note,
                 Enabled = true,
                 CreatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
             };
 
-            SetPassword(account, form.Password);
+            AuthStore.ApplyPassword(account, form.Password);
             _config.Accounts.Add(account);
 
             if (!SaveConfig())
@@ -348,18 +383,18 @@ internal sealed class AccountManagerForm : Form
             using (PasswordResultForm result = new PasswordResultForm(accountName, form.Password, false))
                 result.ShowDialog(this);
 
-            AskEnableAfterFirstAccount();
+            AskEnableIfNeeded();
         }
     }
 
-    /// <summary>新增第一个账号后，主动询问是否启用认证，避免"以为开了其实没开"。</summary>
-    private void AskEnableAfterFirstAccount()
+    /// <summary>新增账号后，如果认证还关着，提醒一次，避免"以为开了其实没开"。</summary>
+    private void AskEnableIfNeeded()
     {
-        if (_config.Enabled || GetAccounts().Count(a => a.Enabled) != 1)
+        if (_config.Enabled)
             return;
 
         DialogResult result = MessageBox.Show(this,
-            "账号已创建。\n\n是否现在启用账号认证？\n（不启用的话，任何账号密码仍然可以进入）",
+            "账号已创建。\n\n当前账号认证仍是关闭状态，任何账号密码都可以进入。\n是否现在启用？",
             "启用认证",
             MessageBoxButtons.YesNo,
             MessageBoxIcon.Question);
@@ -379,13 +414,15 @@ internal sealed class AccountManagerForm : Form
         if (selected == null)
             return;
 
-        using (AccountEditForm form = new AccountEditForm(selected.Account))
+        using (AccountEditForm form = new AccountEditForm(selected))
         {
             if (form.ShowDialog(this) != DialogResult.OK)
                 return;
 
-            SetPassword(selected, form.Password);
+            AuthStore.ApplyPassword(selected, form.Password);
+            selected.Nickname = form.Nickname;
             selected.Note = form.Note;
+            selected.DefaultPassword = false;
 
             if (!SaveConfig())
                 return;
@@ -415,6 +452,18 @@ internal sealed class AccountManagerForm : Form
         if (selected == null)
             return;
 
+        int remaining = GetAccounts().Count(a => a.Enabled && a != selected);
+
+        if (_config.Enabled && remaining == 0)
+        {
+            MessageBox.Show(this,
+                "这是最后一个可用账号，删除后没有玩家能登录。\n\n请先新增其它账号，或关闭账号认证。",
+                "无法删除",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+            return;
+        }
+
         DialogResult result = MessageBox.Show(this,
             "确认删除账号 " + selected.Account + " ？\n\n该玩家的 Profile 存档不会被删除。",
             "删除账号",
@@ -428,16 +477,6 @@ internal sealed class AccountManagerForm : Form
 
         if (SaveConfig())
             ReloadConfig();
-    }
-
-    private static void SetPassword(AuthAccount account, string password)
-    {
-        string proof = AuthCrypto.ComputeClientProof(account.Account, password);
-        string salt = AuthCrypto.CreateSalt();
-
-        account.Salt = salt;
-        account.Hash = AuthCrypto.HashProof(proof, salt, AuthCrypto.StoreIterations);
-        account.Iterations = AuthCrypto.StoreIterations;
     }
 
     private bool SaveConfig()

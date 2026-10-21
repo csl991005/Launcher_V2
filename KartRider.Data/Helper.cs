@@ -15,7 +15,10 @@ public class DataPacket
     public ushort ClientVersion { get; set; }
     public string CompileTime { get; set; }
 
-    // [Auth] 账号认证凭据（未启用认证 / 旧版启动器为 null，服务端会忽略）
+    // [Auth] 登录账号与口令证明（未启用认证 / 旧版启动器为 null，服务端会忽略）
+    // 注意：Account 只用于登录校验，游戏昵称仍然是 Nickname（来自「设置」）
+    public string Account { get; set; }
+
     public string AuthProof { get; set; }
 }
 

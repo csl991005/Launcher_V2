@@ -44,13 +44,18 @@ internal static class AuthBootstrap
 
             AuthServerConfig config = AuthStore.GetServerConfig();
             int usable = 0;
+            int defaultPassword = 0;
             if (config.Accounts != null)
             {
                 for (int i = 0; i < config.Accounts.Count; i++)
                 {
                     AuthAccount account = config.Accounts[i];
-                    if (account != null && account.Enabled)
-                        usable++;
+                    if (account == null || !account.Enabled)
+                        continue;
+
+                    usable++;
+                    if (account.DefaultPassword)
+                        defaultPassword++;
                 }
             }
 
@@ -60,6 +65,10 @@ internal static class AuthBootstrap
                 SafeLog("[Auth] 警告：认证已启用但没有任何可用账号，所有玩家都会被拒绝");
             else
                 SafeLog("[Auth] 账号认证已启用，可用账号 " + usable + " 个");
+
+            if (defaultPassword > 0)
+                SafeLog("[Auth] 提醒：仍有账号使用初始口令（" + AuthStore.DefaultAccountName + " / " +
+                        AuthStore.DefaultAccountPassword + "），请尽快在「账号管理」中修改");
         }
         catch (Exception ex)
         {

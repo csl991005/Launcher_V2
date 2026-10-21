@@ -91,7 +91,7 @@ internal sealed class AuthLoginForm : Form
         hintLabel.AutoSize = true;
         hintLabel.ForeColor = Color.Gray;
         hintLabel.Location = new Point(20, 130);
-        hintLabel.Text = "账号与密码由服务器管理员分配，账号即游戏昵称。";
+        hintLabel.Text = "账号由服务器管理员分配，仅用于登录；游戏昵称请在「设置」中修改。";
 
         // 按钮
         _okButton.Location = new Point(156, 160);

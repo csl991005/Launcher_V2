@@ -92,29 +92,44 @@ internal sealed class AuthPacketHandler : IPacketHandler
         }
 
         string nickname;
+        string account;
         string proof;
         string parseError;
-        if (!TryReadLoginPacket(context.Packet, out nickname, out proof, out parseError))
+        if (!TryReadLoginPacket(context.Packet, out nickname, out account, out proof, out parseError))
         {
             Console.WriteLine($"[Auth] 认证包解析失败（{ip}）: {parseError}");
             RejectSession(session);
             return true;
         }
 
+        AuthAccount matched;
         string reason;
-        if (!AuthStore.Verify(nickname, proof, ip, out reason))
+        if (!AuthStore.Verify(account, proof, ip, out matched, out reason))
         {
-            Console.WriteLine($"[Auth] 拒绝登录: 账号 {nickname}，来源 {ip}，原因：{reason}");
+            Console.WriteLine($"[Auth] 拒绝登录: 账号 {account}，来源 {ip}，原因：{reason}");
+            RejectSession(session);
+            return true;
+        }
+
+        // 账号可选绑定游戏昵称；未绑定则允许玩家在「设置」里自由填写
+        if (matched != null &&
+            !string.IsNullOrWhiteSpace(matched.Nickname) &&
+            !string.Equals(matched.Nickname.Trim(), nickname, StringComparison.Ordinal))
+        {
+            Console.WriteLine(
+                $"[Auth] 拒绝登录: 账号 {account} 绑定的游戏昵称为「{matched.Nickname}」，客户端提交的是「{nickname}」");
             RejectSession(session);
             return true;
         }
 
         AuthSessionState okState = Sessions.GetOrCreateValue(session);
         okState.Authenticated = true;
-        okState.Account = nickname;
+        okState.Account = account;
         okState.Ip = ip;
 
-        // 返回 false：继续走原版登录流程，后续行为与未启用认证时完全一致
+        AuthStore.RecordSuccess(matched, ip);
+
+        // 返回 false：继续走原版登录流程，昵称、Profile 目录等行为与未启用认证时完全一致
         return false;
     }
 
@@ -122,11 +137,13 @@ internal sealed class AuthPacketHandler : IPacketHandler
 
     /// <summary>
     /// PqCnAuthenLogin 结构：Adler32(4) + int + int + ASCII 字符串（Base64 的 passport JSON）。
-    /// 与 ClientSession 中原版解析保持一致。
+    /// 与服务端原版解析保持一致。
     /// </summary>
-    private static bool TryReadLoginPacket(InPacket packet, out string nickname, out string proof, out string error)
+    private static bool TryReadLoginPacket(InPacket packet, out string nickname, out string account,
+        out string proof, out string error)
     {
         nickname = null;
+        account = null;
         proof = null;
         error = null;
 
@@ -162,6 +179,7 @@ internal sealed class AuthPacketHandler : IPacketHandler
                 }
 
                 nickname = GetJsonString(root, "Nickname");
+                account = GetJsonString(root, "Account");
                 proof = GetJsonString(root, "AuthProof");
             }
 
@@ -178,6 +196,12 @@ internal sealed class AuthPacketHandler : IPacketHandler
                 error = "昵称包含非法字符或长度超出限制";
                 return false;
             }
+
+            // 兼容旧版启动器：没有 Account 字段时退化为用昵称当账号
+            if (string.IsNullOrWhiteSpace(account))
+                account = nickname;
+
+            account = account.Trim();
 
             return true;
         }

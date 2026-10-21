@@ -179,6 +179,7 @@ internal static class AuthCli
         target.Iterations = AuthCrypto.StoreIterations;
         target.Enabled = true;
         target.Account = account;
+        target.DefaultPassword = false;
 
         AuthStore.SaveServerConfig(config);
 
@@ -224,6 +225,7 @@ internal static class AuthCli
         target.Salt = salt;
         target.Hash = AuthCrypto.HashProof(proof, salt, AuthCrypto.StoreIterations);
         target.Iterations = AuthCrypto.StoreIterations;
+        target.DefaultPassword = false;
 
         AuthStore.SaveServerConfig(config);
 
@@ -390,7 +392,8 @@ internal static class AuthCli
         Console.WriteLine("  Launcher.exe --auth status                 查看认证状态");
         Console.WriteLine("  Launcher.exe --auth verify <账号> [口令]   本地验证口令是否正确");
         Console.WriteLine();
-        Console.WriteLine("账号即游戏昵称；口令只保存派生值，忘记后请用 passwd 重置。");
+        Console.WriteLine("账号只用于登录；游戏昵称由玩家在启动器「设置」里自行填写。");
+        Console.WriteLine("口令只保存派生值，忘记后请用 passwd 重置。");
         Console.WriteLine();
     }
 

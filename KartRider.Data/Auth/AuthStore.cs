@@ -62,6 +62,7 @@ internal static class AuthStore
                 {
                     SaveServerConfigUnlocked(CreateDefaultServerConfig());
                     Console.WriteLine($"[Auth] 已生成认证配置文件: {ServerConfigPath}");
+                    Console.WriteLine("[Auth] 默认账号 admin / 口令 admin，请在「账号管理」中尽快修改");
                 }
             }
         }
@@ -73,14 +74,46 @@ internal static class AuthStore
 
     public static AuthServerConfig CreateDefaultServerConfig()
     {
-        return new AuthServerConfig
+        AuthServerConfig config = new AuthServerConfig
         {
-            Enabled = false,
+            Enabled = true,
             AllowLoopback = false,
             MaxFailedAttempts = 5,
             LockoutSeconds = 300,
             LogSuccessfulLogin = true,
         };
+
+        // 默认账号：账号与游戏昵称无关，玩家仍在「设置」里填写自己的昵称
+        AuthAccount admin = new AuthAccount
+        {
+            Account = DefaultAccountName,
+            Nickname = string.Empty,
+            Enabled = true,
+            DefaultPassword = true,
+            Note = "默认账号，请尽快修改口令",
+            CreatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+        };
+
+        ApplyPassword(admin, DefaultAccountPassword);
+        config.Accounts.Add(admin);
+
+        return config;
+    }
+
+    /// <summary>首次运行生成的默认账号，仅用于让服务器开箱可用。</summary>
+    public const string DefaultAccountName = "admin";
+
+    public const string DefaultAccountPassword = "admin";
+
+    /// <summary>按明文口令写入账号的盐与哈希。服务端不保存明文。</summary>
+    public static void ApplyPassword(AuthAccount account, string password)
+    {
+        string proof = AuthCrypto.ComputeClientProof(account.Account, password);
+        string salt = AuthCrypto.CreateSalt();
+
+        account.Salt = salt;
+        account.Hash = AuthCrypto.HashProof(proof, salt, AuthCrypto.StoreIterations);
+        account.Iterations = AuthCrypto.StoreIterations;
     }
 
     public static AuthServerConfig GetServerConfig()
@@ -194,12 +227,14 @@ internal static class AuthStore
     /// <summary>
     /// 校验账号与口令证明。
     /// </summary>
-    /// <param name="account">账号（同时是游戏昵称）</param>
+    /// <param name="account">登录账号（与游戏昵称无关）</param>
     /// <param name="proof">客户端 PBKDF2 口令证明</param>
     /// <param name="ip">连接来源 IP，用于失败锁定</param>
+    /// <param name="matched">校验通过时返回命中的账号</param>
     /// <param name="reason">失败原因（用于日志，不返回给客户端）</param>
-    public static bool Verify(string account, string proof, string ip, out string reason)
+    public static bool Verify(string account, string proof, string ip, out AuthAccount matched, out string reason)
     {
+        matched = null;
         reason = string.Empty;
 
         AuthServerConfig config = GetServerConfig();
@@ -259,25 +294,42 @@ internal static class AuthStore
         }
 
         ClearFailures(account, ip);
+        matched = target;
+        return true;
+    }
 
-        target.LastLoginAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-        target.LastLoginIp = ip ?? string.Empty;
-        target.LoginCount++;
+    /// <summary>
+    /// 认证全部通过后记录登录统计并输出日志。
+    /// 单独一步是为了避免"口令对了但昵称被拒"也被记为成功登录。
+    /// </summary>
+    public static void RecordSuccess(AuthAccount account, string ip)
+    {
+        if (account == null)
+            return;
 
         try
         {
+            AuthServerConfig config = GetServerConfig();
+            AuthAccount target = config.Accounts.FirstOrDefault(a =>
+                a != null && string.Equals(a.Account, account.Account, StringComparison.OrdinalIgnoreCase));
+
+            if (target == null)
+                return;
+
+            target.LastLoginAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            target.LastLoginIp = ip ?? string.Empty;
+            target.LoginCount++;
+
             SaveServerConfig(config);
+
+            if (config.LogSuccessfulLogin)
+                Console.WriteLine($"[Auth] 登录成功: 账号 {target.Account} 来自 {ip}（累计 {target.LoginCount} 次）");
         }
         catch (Exception ex)
         {
             // 统计写入失败不应影响玩家登录
             Console.WriteLine($"[Auth] 保存登录统计失败: {ex.Message}");
         }
-
-        if (config.LogSuccessfulLogin)
-            Console.WriteLine($"[Auth] 登录成功: {target.Account} 来自 {ip}（累计 {target.LoginCount} 次）");
-
-        return true;
     }
 
     /// <summary>
@@ -423,9 +475,7 @@ internal static class AuthStore
                     AuthClientConfig created = new AuthClientConfig
                     {
                         Enabled = true,
-                        LastAccount = ProfileService.SettingConfig == null
-                            ? string.Empty
-                            : (ProfileService.SettingConfig.Name ?? string.Empty),
+                        LastAccount = DefaultAccountName,
                     };
                     SaveClientConfigUnlocked(created);
                     return created;
