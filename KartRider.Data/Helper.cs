@@ -14,6 +14,9 @@ public class DataPacket
     public string Nickname { get; set; }
     public ushort ClientVersion { get; set; }
     public string CompileTime { get; set; }
+
+    // [Auth] 账号认证凭据（未启用认证 / 旧版启动器为 null，服务端会忽略）
+    public string AuthProof { get; set; }
 }
 
 public static class Base64Helper

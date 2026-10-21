@@ -31,6 +31,14 @@ class StartGame
             CompileTime = CompileTime.Time,
         };
 
+        // ===== [Auth] 账号认证：先取凭据，再改动 PIN；用户取消则直接结束 =====
+        if (!AuthClient.FillAuth(packet))
+        {
+            Console.WriteLine("[Auth] 未取得账号凭据，停止启动游戏");
+            return;
+        }
+        // ===== [Auth] END =====
+
         try
         {
             RestorePinFile();
